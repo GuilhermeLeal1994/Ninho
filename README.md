@@ -94,7 +94,7 @@ Esses limites representam regras iniciais definidas para o projeto e poderão se
 
 Os testes foram desenvolvidos utilizando **JUnit 5**.
 
-Atualmente a Semana 1 possui **7 testes unitários**, verificando:
+A Semana 1 iniciou com **7 testes unitários**, verificando:
 
 1. Detecção de temperatura alta;
 2. Temperatura dentro da condição normal;
@@ -104,12 +104,7 @@ Atualmente a Semana 1 possui **7 testes unitários**, verificando:
 6. Geração de um objeto `Alerta` quando uma anomalia é identificada;
 7. Não geração de alerta quando a leitura está dentro da condição normal.
 
-Resultado atual dos testes:
-
-```text
-Tests run: 7, Failures: 0, Errors: 0, Skipped: 0
-BUILD SUCCESS
-```
+Após a Semana 2, o projeto possui **15 testes JUnit** (7 anteriores e 8 novos). O comando `mvn clean test` foi executado pelo desenvolvedor com resultado **BUILD SUCCESS**.
 
 Para executar os testes:
 
@@ -119,7 +114,7 @@ mvn clean test
 
 ---
 
-## 🏗️ Estrutura da Semana 1
+## 🏗️ Estrutura do projeto (evolução incremental)
 
 ```text
 
@@ -274,7 +269,7 @@ O desenvolvimento do Ninho será realizado de forma incremental, seguindo as eta
 | Semana | Etapa | Status |
 |---|---|---|
 | 1 | Domínio básico e regras de negócio | ✅ Concluída |
-| 2 | Organização em pacotes, DDD e testes | ⏳ Próxima etapa |
+| 2 | Organização em pacotes, DDD e testes | ✅ Implementada e validada (`mvn clean test`) |
 | 3 | Threads e execução concorrente dos sensores | ⏳ Pendente |
 | 4 | Sincronização, estado compartilhado e prevenção de deadlocks | ⏳ Pendente |
 | 5 | Persistência JDBC e I/O de arquivos | ⏳ Pendente |
@@ -283,13 +278,26 @@ O desenvolvimento do Ninho será realizado de forma incremental, seguindo as eta
 
 ---
 
+## ✅ Semana 2 — Tipos de sensores, polimorfismo e testes de limites
+
+Nesta etapa, o domínio foi ampliado com:
+
+- `TipoSensor`: enum que define `TEMPERATURA`, `UMIDADE` e `LUMINOSIDADE`.
+- `RegraAnomalia`: interface para abstrair a verificação de anomalias.
+- `RegraTemperatura`, `RegraUmidade` e `RegraLuminosidade`: implementações específicas das regras, aplicando polimorfismo.
+- `AnalisadorDeAnomalias`: atualizado para utilizar as regras específicas.
+- `LeituraTelemetria`: adaptada para suportar a evolução dos tipos de sensor, mantendo compatibilidade com os testes anteriores.
+- `RegrasAnomaliaLimitesTest`: oito testes adicionais, incluindo valores nos limites definidos.
+
+As condições de anomalia permanecem: temperatura **acima** de 30 °C, umidade **abaixo** de 30% e luminosidade **abaixo** de 100 lux. Os valores exatamente iguais aos limites não geram anomalia.
+
+**Validação:** `mvn clean test` — `BUILD SUCCESS`, confirmado pelo desenvolvedor. A Semana 2 não implementa ainda threads nem persistência.
+
+---
+
 ## 🔜 Próxima etapa
 
-A próxima etapa do projeto será dedicada ao refinamento da arquitetura, organização dos pacotes, aplicação dos conceitos de DDD e ampliação dos testes.
-
-Antes da implementação da concorrência, serão revisadas as responsabilidades das classes e a separação entre domínio, infraestrutura e aplicação.
-
-A implementação das threads dos sensores e do modelo produtor-consumidor está prevista para a etapa seguinte.
+Na Semana 3 serão implementados sensores `Runnable`, fila segura com `BlockingQueue` e processamento consumidor. Na Semana 4 serão acrescentados sincronização, encerramento seguro das threads e testes de concorrência repetidos.
 
 ---
 

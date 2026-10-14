@@ -1,47 +1,31 @@
 package br.com.assistenteambiental.domain;
 
+import java.util.List;
+
 public class AnalisadorDeAnomalias {
+    private final List<RegraAnomalia> regras = List.of(
+            new RegraTemperatura(), new RegraUmidade(), new RegraLuminosidade());
+
+    private RegraAnomalia encontrarRegra(LeituraTelemetria leitura) {
+        for (RegraAnomalia regra : regras) {
+            if (regra.tipoSensor().name().equals(leitura.getTipoSensor())) {
+                return regra;
+            }
+        }
+        return null;
+    }
 
     public boolean temAnomalia(LeituraTelemetria leitura) {
-
-        if ("TEMPERATURA".equals(leitura.getTipoSensor())) {
-            return leitura.getValor() > 30.0;
-        }
-
-        if ("UMIDADE".equals(leitura.getTipoSensor())) {
-            return leitura.getValor() < 30.0;
-        }
-
-        if ("LUMINOSIDADE".equals(leitura.getTipoSensor())) {
-            return leitura.getValor() < 100.0;
-        }
-
-        return false;
+        RegraAnomalia regra = encontrarRegra(leitura);
+        return regra != null && regra.ehAnomalia(leitura.getValor());
     }
 
     public Alerta analisar(LeituraTelemetria leitura) {
-
-        if (!temAnomalia(leitura)) {
+        RegraAnomalia regra = encontrarRegra(leitura);
+        if (regra == null || !regra.ehAnomalia(leitura.getValor())) {
             return null;
         }
-
-        String mensagem;
-
-        if ("TEMPERATURA".equals(leitura.getTipoSensor())) {
-            mensagem = "Temperatura acima do limite";
-        } else if ("UMIDADE".equals(leitura.getTipoSensor())) {
-            mensagem = "Umidade abaixo do limite";
-        } else if ("LUMINOSIDADE".equals(leitura.getTipoSensor())) {
-            mensagem = "Luminosidade abaixo do limite";
-        } else {
-            mensagem = "Anomalia detectada";
-        }
-
-        return new Alerta(
-                leitura.getTipoSensor(),
-                leitura.getValor(),
-                mensagem,
-                leitura.getDataHora()
-        );
+        return new Alerta(leitura.getTipoSensor(), leitura.getValor(),
+                regra.mensagem(), leitura.getDataHora());
     }
 }
