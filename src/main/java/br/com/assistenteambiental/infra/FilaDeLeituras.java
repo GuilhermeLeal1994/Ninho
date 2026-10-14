@@ -8,6 +8,15 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class FilaDeLeituras {
     private final BlockingQueue<LeituraTelemetria> leituras = new LinkedBlockingQueue<>();
 
+    public void publicar(LeituraTelemetria leitura) throws InterruptedException {
+        leituras.put(java.util.Objects.requireNonNull(leitura, "leitura"));
+    }
+
+    public LeituraTelemetria retirar() throws InterruptedException {
+        return leituras.take();
+    }
+
+    /** Acesso legado mantido para compatibilidade com os produtores existentes. */
     public BlockingQueue<LeituraTelemetria> getFila() {
         return leituras;
     }
