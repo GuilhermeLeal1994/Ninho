@@ -117,44 +117,48 @@ mvn clean test
 ## 🏗️ Estrutura do projeto (evolução incremental)
 
 ```text
-
 assistente-de-ambiente/
-│
+├── .github/
+├── .gitignore
 ├── AGENTS.md
 ├── README.md
 ├── pom.xml
-│
 └── src/
     ├── main/
     │   └── java/
     │       └── br/com/assistenteambiental/
     │           ├── app/
-    │           │   └── Main.java
-    │           │
+    │           │   ├── Main.java
+    │           │   └── ProcessadorDeLeituras.java
     │           ├── domain/
-    │           │   ├── Sensor.java
-    │           │   ├── LeituraTelemetria.java
     │           │   ├── Alerta.java
-    │           │   └── AnalisadorDeAnomalias.java
-    │           │
+    │           │   ├── AnalisadorDeAnomalias.java
+    │           │   ├── LeituraTelemetria.java
+    │           │   ├── RegraAnomalia.java
+    │           │   ├── RegraLuminosidade.java
+    │           │   ├── RegraTemperatura.java
+    │           │   ├── RegraUmidade.java
+    │           │   ├── Sensor.java
+    │           │   └── TipoSensor.java
     │           └── infra/
-    │               ├── FilaDeLeituras.java
     │               ├── AlertaRepository.java
+    │               ├── FilaDeLeituras.java
     │               └── LogArquivo.java
-    │
     ├── test/
     │   └── java/
-    │       └── br/com/assistenteambiental/domain/
-    │           └── AnalisadorDeAnomaliasTest.java
-    │
+    │       └── br/com/assistenteambiental/
+    │           ├── app/
+    │           │   └── ConcorrenciaSensoresTest.java
+    │           └── domain/
+    │               ├── AnalisadorDeAnomaliasTest.java
+    │               └── RegrasAnomaliaLimitesTest.java
     ├── database/
     │   └── schema.sql
-    │
     └── docs/
         └── RELATORIO.md
-
 ```
-> Algumas classes já foram criadas para representar a arquitetura planejada do sistema, mas ainda não possuem implementação. As funcionalidades de concorrência, fila, persistência JDBC e logs serão desenvolvidas nas etapas correspondentes.
+
+> **Situação até a Semana 3:** as classes de domínio, regras de anomalia, sensores concorrentes, fila de leituras e processador já possuem implementação. `AlertaRepository.java`, `LogArquivo.java`, `schema.sql` e `RELATORIO.md` continuam reservados para as próximas etapas. A estrutura acima representa os arquivos do projeto, sem incluir saídas geradas pelo Maven, como `target/`.
 
 ---
 
@@ -270,7 +274,7 @@ O desenvolvimento do Ninho será realizado de forma incremental, seguindo as eta
 |---|---|---|
 | 1 | Domínio básico e regras de negócio | ✅ Concluída |
 | 2 | Organização em pacotes, DDD e testes | ✅ Implementada e validada (`mvn clean test`) |
-| 3 | Threads e execução concorrente dos sensores | ⏳ Pendente |
+| 3 | Threads e execução concorrente dos sensores | 🧪 Implementada; aguardando validação Maven |
 | 4 | Sincronização, estado compartilhado e prevenção de deadlocks | ⏳ Pendente |
 | 5 | Persistência JDBC e I/O de arquivos | ⏳ Pendente |
 | 6 | Testes de estresse e testes finais | ⏳ Pendente |
@@ -295,9 +299,26 @@ As condições de anomalia permanecem: temperatura **acima** de 30 °C, umidade 
 
 ---
 
+## 🧵 Semana 3 — Sensores concorrentes e fila segura
+
+Implementação preparada (pendente de validação local com Maven):
+
+- `Sensor` implementa `Runnable`, gerando leituras simuladas de cada `TipoSensor`.
+- `FilaDeLeituras` encapsula `LinkedBlockingQueue`, uma fila segura para múltiplas threads.
+- `ProcessadorDeLeituras` consome as leituras em uma thread própria e aplica as regras do domínio.
+- `Main` inicia três produtores e um consumidor com `ExecutorService` e aguarda o encerramento com `awaitTermination`.
+- `ConcorrenciaSensoresTest` executa dez repetições com três produtores e um consumidor, verificando a quantidade recebida por tipo e o esvaziamento da fila.
+
+As leituras ainda são **simuladas**, sem Arduino conectado. A persistência JDBC e o log em arquivo ficam para as próximas etapas.
+
+**Executar testes:** `mvn clean test`  
+**Executar demonstração:** pelo VS Code, executar a classe `br.com.assistenteambiental.app.Main`.
+
+---
+
 ## 🔜 Próxima etapa
 
-Na Semana 3 serão implementados sensores `Runnable`, fila segura com `BlockingQueue` e processamento consumidor. Na Semana 4 serão acrescentados sincronização, encerramento seguro das threads e testes de concorrência repetidos.
+Na Semana 4 serão revisados os riscos de condição de corrida, a sincronização, o encerramento seguro das threads e os testes de concorrência.
 
 ---
 
