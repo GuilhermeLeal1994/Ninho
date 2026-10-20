@@ -39,6 +39,11 @@ Classes previstas:
 - `Alerta`
 - `AnalisadorDeAnomalias`
 
+### `domain` — portas
+
+- `AlertaRepository`: contrato para salvar e consultar alertas.
+- `RegistroDeLeituras`: contrato para registrar leituras.
+
 ### `infra`
 
 Contém componentes relacionados à infraestrutura.
@@ -70,12 +75,17 @@ e devem acompanhar a estrutura de pacotes do código principal.
 - O domínio não deve depender da infraestrutura.
 - Classes do pacote `domain` não devem acessar banco de dados.
 - Classes do pacote `domain` não devem realizar operações de arquivo.
-- O domínio não deve importar `java.sql`.
+- O domínio não deve importar `java.sql`, `java.io`, `java.net` ou `javax.swing`.
 - O domínio não deve conhecer detalhes de JDBC.
 - Regras de negócio devem permanecer independentes de threads e banco de dados sempre que possível.
 - `AnalisadorDeAnomalias` deve ser testável sem banco de dados e sem threads.
 - `Sensor` deve ser responsável apenas pela geração e publicação de leituras.
 - `Sensor` não deve conhecer banco de dados ou sistema de logs.
+- Toda persistência deve passar por interfaces (portas) definidas em `domain`.
+- Adaptadores concretos (`AlertaRepositoryJdbc`, `LogArquivo`, cliente Apps Script) ficam em `infra`; não incluir SQL, arquivo ou rede no domínio.
+- Injetar dependências por construtor e montá-las em `Main`, evitando instanciar adaptadores dentro do domínio.
+- Para cada porta de persistência/registro, planejar um adaptador real e um falso/em memória para testes.
+- Não introduzir regras de negócio no Next.js, controller ou interface gráfica.
 - O acesso ao banco deve ser isolado por Repository/DAO.
 - O registro de leituras em arquivo deve permanecer na infraestrutura.
 - Cada classe deve possuir uma responsabilidade clara.
@@ -86,26 +96,14 @@ As regras iniciais definidas para o Ninho são:
 
 - Temperatura acima de 30 °C: anomalia.
 - Umidade abaixo de 30%: anomalia.
-- Luminosidade abaixo de 100 lux: anomalia.
+- Luminosidade abaixo de 100 lux: anomalia **na implementação atual**.
+- O ESP32 produz ADC (0–4095), não lux; não misturar unidades. Migração para ADC depende de testes e validação do divisor resistivo.
 
 Esses valores fazem parte da implementação inicial e poderão ser ajustados conforme a evolução do projeto.
 
 ## Concorrência
 
-A arquitetura está sendo preparada para o modelo produtor-consumidor previsto na especificação.
-
-Quando a etapa de concorrência for implementada:
-
-- `Sensor` deverá implementar `Runnable`.
-- Cada sensor simulado deverá executar em sua própria thread.
-- Os sensores publicarão leituras em uma fila compartilhada.
-- A fila deverá ser thread-safe.
-- A implementação deverá evitar perda e duplicação de leituras.
-- A implementação deverá evitar race conditions e deadlocks.
-
-A fila compartilhada será o principal estado compartilhado entre as threads.
-
-Não antecipar a implementação dessas funcionalidades antes da etapa correspondente do projeto.
+Implementado: `Sensor implements Runnable`, execução paralela dos três tipos, fila `LinkedBlockingQueue`, consumidor produtor-consumidor, `CountDownLatch`, verificação com `Future.get()`, sequência de leituras e demonstração didática de condição de corrida. Não adicionar sincronização redundante à fila thread-safe. Preservar encerramento cooperativo e propagação de falhas das threads.
 
 ## Persistência
 
@@ -182,30 +180,12 @@ Regras:
 - Não fornecer dados pessoais ou informações sensíveis.
 - Utilizar a IA como ferramenta de apoio e aprendizado.
 
-## Estado atual do projeto
+## Estado atual do projeto (20/10/2026)
 
-### Domínio e regras de anomalia
-
-Implementado:
-
-- `LeituraTelemetria`
-- `Alerta`
-- `AnalisadorDeAnomalias`
-- Testes unitários das regras de anomalia
-
-Resultado atual esperado:
-
-```text
-Tests run: 7, Failures: 0, Errors: 0, Skipped: 0
-BUILD SUCCESS
-```
-
-Ainda não implementado:
-
-- Execução concorrente dos sensores;
-- Fila compartilhada;
-- Persistência JDBC;
-- Banco SQLite;
-- Log das leituras.
-
-Essas funcionalidades serão desenvolvidas nas etapas posteriores.
+- Domínio, regras de anomalia, concorrência e sincronização implementados.
+- Última validação informada: **36 testes JUnit aprovados**. Reexecutar `mvn clean test` após aplicar alterações.
+- Interfaces `domain/AlertaRepository` e `domain/RegistroDeLeituras` criadas como portas de arquitetura; **ainda não possuem adaptadores funcionais**.
+- JDBC/SQLite, logs de leituras e integração Java ↔ Google Sheets pendentes.
+- Dashboard Next.js inicial em `web/`, ainda com dados demonstrativos.
+- Firmware ESP32 e Apps Script preparados externamente; integração e hardware físico ainda não validados.
+- Entrega da aula de arquitetura: tabela de oito termos, classificação DDD, portas e diagrama no `README.md`.

@@ -23,7 +23,7 @@ Além dos sensores simulados, estão **planejadas duas interfaces complementares
 - **Interface web responsiva:** painel acessível pelo computador e celular, com leituras, alertas e histórico.
 - **Interface física embarcada:** matriz de LEDs integrada a um futuro módulo eletrônico com sensores, para representar visualmente estados do ambiente.
 
-A placa controladora (Arduino, ESP32 ou outra), a resolução da matriz e a forma de comunicação serão definidas após a entrega do módulo físico. **Nenhuma dessas interfaces é apresentada como implementada nesta etapa.**
+O hardware previsto utiliza ESP32 Wemos D1 R32, DHT11 e LDR (ADC), com envio ao Google Apps Script e Google Sheets. O firmware foi preparado separadamente; a integração com o núcleo Java e o hardware físico ainda não foi validada. A interface Next.js existe em `web/`, inicialmente com dados demonstrativos. A matriz de LEDs permanece planejada.
 
 ---
 
@@ -63,9 +63,9 @@ O Ninho utiliza como base a proposta **Sistema de Telemetria de Sensores**: sens
 | :--- | :--- |
 | 🌡️ Temperatura | Acima de 30 °C |
 | 💧 Umidade | Abaixo de 30% |
-| 💡 Luminosidade | Abaixo de 100 lux |
+| 💡 Luminosidade | Abaixo de 100 lux (regra atual; migração para ADC pendente) |
 
-**Observação:** valores exatamente iguais aos limites não geram anomalia. Essas são as regras definidas para a versão atual do projeto.
+**Observação:** valores exatamente iguais aos limites não geram anomalia. O firmware ESP32 fornece luminosidade em ADC bruto (0–4095), **não lux**. Não alimentar a regra atual de 100 lux com ADC; a mudança de unidade e o limiar deverão ser implementados e testados após medições do circuito real.
 
 ---
 
@@ -87,6 +87,8 @@ assistente-de-ambiente/
     │       │   └── ProcessadorDeLeituras.java
     │       ├── domain/
     │       │   ├── Alerta.java
+│       │   ├── AlertaRepository.java (porta)
+│       │   ├── RegistroDeLeituras.java (porta)
     │       │   ├── AnalisadorDeAnomalias.java
     │       │   ├── LeituraTelemetria.java
     │       │   ├── RegraAnomalia.java
@@ -182,6 +184,87 @@ O diagrama apresenta as responsabilidades e relações conceituais do sistema. M
 
 ---
 
+
+## 🧭 Atividade de arquitetura — aula 4 (DDD e portas/adaptadores)
+
+Esta seção documenta o **desenho arquitetural** pedido na aula. As portas abaixo já possuem assinaturas Java, mas seus adaptadores JDBC e de arquivo ainda **não estão implementados**. A implementação real será feita na etapa de persistência e I/O.
+
+### Linguagem ubíqua — oito termos
+
+| Termo do Ninho | Classe / contrato | Significado no projeto |
+| :--- | :--- | :--- |
+| Sensor | `Sensor` | Produtor simulado de leituras concorrentes |
+| Tipo de sensor | `TipoSensor` | Identifica temperatura, umidade ou luminosidade |
+| Leitura de telemetria | `LeituraTelemetria` | Medição imutável com tipo, valor, unidade, horário e sequência |
+| Regra de anomalia | `RegraAnomalia` | Contrato para decidir se uma leitura está fora do limite |
+| Analisador de anomalias | `AnalisadorDeAnomalias` | Aplica as regras e produz um alerta quando necessário |
+| Alerta | `Alerta` | Ocorrência de anomalia detectada |
+| Repositório de alertas | `AlertaRepository` | Porta para salvar e consultar alertas, sem depender de JDBC |
+| Registro de leituras | `RegistroDeLeituras` | Porta para registrar cada leitura, sem depender de arquivo |
+
+### Entidades, objetos de valor e agregados
+
+- **`LeituraTelemetria`** é tratada como **objeto de valor**: representa uma medição que não muda após a criação. O campo `sequencia` identifica a ordem da coleta simulada, não uma identidade persistente de entidade. A classe ainda não sobrescreve `equals`/`hashCode`; a igualdade por valor é uma melhoria futura.
+- **`Alerta`** é tratado nesta versão como **registro de ocorrência imutável**, sem ID persistente. Quando adicionarmos JDBC, definiremos um identificador para tratá-lo como entidade, caso necessário.
+- **`Sensor`** representa um produtor concorrente (`Runnable`), não um agregado de negócio persistido.
+- **Raiz de agregado:** ainda **não há agregado persistente modelado** no código atual. Não inventaremos uma raiz apenas para preencher o diagrama. A necessidade de um agregado de alertas será reavaliada com a persistência.
+
+### Portas do domínio — contratos Java
+
+```java
+// domain/AlertaRepository.java
+public interface AlertaRepository {
+    void salvar(Alerta alerta);
+    List<Alerta> listarTodos();
+}
+
+// domain/RegistroDeLeituras.java
+public interface RegistroDeLeituras {
+    void registrar(LeituraTelemetria leitura);
+}
+```
+
+Os adaptadores planejados são `AlertaRepositoryJdbc` (SQLite/JDBC), `LogArquivo` (I/O de arquivo) e implementações em memória para testes. O arquivo legado vazio `infra/AlertaRepository.java` não é um repositório funcional e será substituído/retirado na etapa JDBC.
+
+### Diagrama de camadas e portas/adaptadores
+
+```mermaid
+flowchart TB
+    subgraph ENTRADAS[Entradas e aplicação]
+        SIM[Sensor simulado / threads]
+        ESP[ESP32 + Apps Script + Google Sheets — integração futura]
+        WEB[Dashboard Next.js — integração futura]
+        APP[Main e ProcessadorDeLeituras]
+    end
+    subgraph DOMINIO[Domínio Java — sem JDBC, arquivo, rede ou UI]
+        LEITURA[LeituraTelemetria]
+        ANALISADOR[AnalisadorDeAnomalias e RegraAnomalia]
+        ALERTA[Alerta]
+        PORTA1[AlertaRepository — porta]
+        PORTA2[RegistroDeLeituras — porta]
+    end
+    subgraph ADAPTADORES[Infraestrutura — planejada]
+        JDBC[AlertaRepositoryJdbc / SQLite]
+        LOG[LogArquivo]
+        SHEETS[Cliente Apps Script]
+    end
+    SIM --> APP
+    ESP -.-> SHEETS
+    SHEETS -.-> APP
+    WEB -.-> APP
+    APP --> LEITURA
+    APP --> ANALISADOR
+    ANALISADOR --> ALERTA
+    APP -.-> PORTA1
+    APP -.-> PORTA2
+    JDBC -.-> PORTA1
+    LOG -.-> PORTA2
+```
+
+**Legenda:** seta contínua = fluxo já presente; seta pontilhada = integração/implementação planejada. O domínio **define os contratos**; adaptadores concretos dependerão dessas interfaces, nunca o contrário. O `Main` é o ponto de montagem das dependências.
+
+**Decisão arquitetural:** Google Sheets guardará o histórico das leituras recebidas do ESP32; SQLite/JDBC persistirá os alertas para cumprir a exigência acadêmica. As regras de anomalia não conhecerão nenhuma dessas tecnologias.
+
 ## 🧵 Concorrência e sincronização
 
 ### Semana 3 — Produtor-consumidor
@@ -208,7 +291,7 @@ A demonstração de condição de corrida é **didática e independente** do flu
 - `CountDownLatch` sinaliza o término dos produtores. O consumidor encerra quando todos terminam **e** a fila está vazia, inclusive se a produção for menor que a previsão.
 - `FilaDeLeituras` agora oferece `publicar()` e `retirar()`; `getFila()` continua disponível por compatibilidade. A migração completa para encapsulamento pode ser feita futuramente.
 - `EncerramentoProdutoresTest` verifica que o consumidor não fica preso quando recebe menos leituras que a quantidade inicialmente prevista.
-- A validação anterior registrou **35 testes aprovados**; o teste novo ainda precisa ser validado com `mvn clean test` antes do commit.
+- A validação anterior registrou **36 testes aprovados** na última validação informada; reexecutar `mvn clean test` após aplicar este pacote.
 
 
 ---
@@ -220,7 +303,7 @@ A demonstração de condição de corrida é **didática e independente** do flu
 | 1 | Domínio básico e regras de negócio (TDD) | ✅ Concluída |
 | 2 | Organização em pacotes, regras polimórficas e testes de limites | ✅ Concluída |
 | 3 | Threads e execução concorrente dos sensores | ✅ Concluída e publicada no GitHub |
-| 4 | Sincronização, estado compartilhado e testes concorrentes | 🧪 Revisão de robustez preparada; revalidar Maven antes do commit |
+| 4 | Sincronização, estado compartilhado e testes concorrentes | ✅ Concluída; 36 testes aprovados na última validação informada |
 | 5 | Persistência JDBC e I/O de arquivos | ⏳ Pendente |
 | 6 | Testes de estresse e validações finais | ⏳ Pendente |
 | 7 | Relatório e vídeo de apresentação | ⏳ Pendente |
@@ -236,7 +319,7 @@ A demonstração de condição de corrida é **didática e independente** do flu
 - **Threads, `Runnable`, `BlockingQueue` e `synchronized`**
 - **Git e GitHub** — versionamento
 
-**Planejados para próximas etapas:** JDBC, banco de dados, escrita de logs e interfaces web/física.
+**Planejados para próximas etapas:** JDBC/SQLite, escrita de logs, integração Java com Google Sheets e validação do hardware. A interface Next.js já possui uma primeira versão demonstrativa em `web/`.
 
 ---
 

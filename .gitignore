@@ -35,3 +35,17 @@ Thumbs.db
 # Arquivos de backup
 *~
 *.bak
+
+# Next.js / Node.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Arquivos de ambiente
+.env
+.env.local
+.env.*.local
+
+# Arquivos gerados pelo Next.js
+next-env.d.ts
