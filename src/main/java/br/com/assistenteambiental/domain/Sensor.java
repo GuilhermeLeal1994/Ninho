@@ -11,6 +11,7 @@ public class Sensor implements Runnable {
     private final BlockingQueue<LeituraTelemetria> fila;
     private final int quantidade;
     private final CountDownLatch produtoresRestantes;
+    private final boolean modoAdc;
 
     public Sensor(TipoSensor tipo, BlockingQueue<LeituraTelemetria> fila, int quantidade) {
         this(tipo, fila, quantidade, null);
@@ -18,11 +19,23 @@ public class Sensor implements Runnable {
 
     public Sensor(TipoSensor tipo, BlockingQueue<LeituraTelemetria> fila, int quantidade,
                   CountDownLatch produtoresRestantes) {
+        this(tipo, fila, quantidade, produtoresRestantes, false);
+    }
+
+    /** Simulador de luminosidade ADC; mantem os construtores antigos em lux. */
+    public static Sensor luminosidadeAdc(BlockingQueue<LeituraTelemetria> fila, int quantidade,
+                                         CountDownLatch produtoresRestantes) {
+        return new Sensor(TipoSensor.LUMINOSIDADE, fila, quantidade, produtoresRestantes, true);
+    }
+
+    private Sensor(TipoSensor tipo, BlockingQueue<LeituraTelemetria> fila, int quantidade,
+                   CountDownLatch produtoresRestantes, boolean modoAdc) {
         this.tipo = Objects.requireNonNull(tipo, "tipo");
         this.fila = Objects.requireNonNull(fila, "fila");
         if (quantidade < 0) throw new IllegalArgumentException("quantidade negativa");
         this.quantidade = quantidade;
         this.produtoresRestantes = produtoresRestantes;
+        this.modoAdc = modoAdc;
     }
 
     @Override
@@ -46,7 +59,9 @@ public class Sensor implements Runnable {
         return switch (tipo) {
             case TEMPERATURA -> new LeituraTelemetria(tipo, 25.0 + indice % 8, "°C", LocalDateTime.now(), indice);
             case UMIDADE -> new LeituraTelemetria(tipo, 25.0 + indice % 30, "%", LocalDateTime.now(), indice);
-            case LUMINOSIDADE -> new LeituraTelemetria(tipo, 80.0 + indice % 60, "lux", LocalDateTime.now(), indice);
+            case LUMINOSIDADE -> modoAdc
+                    ? new LeituraTelemetria(tipo, (indice % 3) * 1500.0, "ADC", LocalDateTime.now(), indice)
+                    : new LeituraTelemetria(tipo, 80.0 + indice % 60, "lux", LocalDateTime.now(), indice);
         };
     }
 }
